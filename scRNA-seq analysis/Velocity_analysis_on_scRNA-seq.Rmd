@@ -1,0 +1,165 @@
+---
+title: "running Velocity on scRNAseq data"
+owner: "Luna-Velez-lab" 
+date: "24-05-2023"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+This is a R Markdown file showing the workflow for running Velocity on scRNA-seq data, an analysis that can predict cell directionality based on the ratio of spliced/unspliced reads of each gene. The input data should be a Seurat object containing the  normalized, scaled spliced and unslpliced data and contains contain information on the highest variable genes (HVGs) and demensional reductions (UMAP) (see scRNA-seq_KB_data_analysing_pipeline).
+
+This workflow has been created using our data as example. When you want to use this workflow for your own analysis you will need to change parts of the code to make it fit your data. 
+This include: 
+- Changing file/folder paths 
+- Changing file names 
+
+#-----------------------------------#
+## Installing required packages----##
+#-----------------------------------#
+
+When working on the server make sure that all required packages are present in the environment. (scRNAseq.yaml)
+```{r, include = FALSE}
+# Installing important packages:
+
+# if (!requireNamespace("BiocManager", quietly = TRUE))
+   # install.packages("BiocManager")
+# BiocManager::install("clusterProfiler")
+
+# Loading the important repositories
+#library(ggfortify)
+# install.packages("devtools")
+# install.packages('Seurat')
+# devtools::install_github('satijalab/seurat-wrappers')
+# library(clusterProfiler)
+# library(org.Hs.eg.db)
+
+library(ggplot2)#package needed to extract seurat colours from the opbject
+library(dplyr)#package neede to manipulate taqbles 
+library(tidyr)
+library(knitr)
+require("devtools")
+library(Seurat)#needed for loading the seuratobject
+library(SeuratWrappers) #package needed for running RNA-velocity
+library(velocyto.R)#package needed to create plots
+library(RColorBrewer)#Packages that allows for the usage of different color pallets
+library(scales)#to set the colors for the velocity plots
+
+set.seed(42)
+```
+
+```{r}
+workdir <- "/scratch/yquint/scRNAseq/"
+dateoftoday <- gsub("-", "", as.character(Sys.Date()))
+resultsdir <- paste(workdir, dateoftoday, "_results_velocity/", sep = "")#in the set workdir a new folder will be created named (dateoftoday)_results_velocity
+system(paste("mkdir -p ", resultsdir))
+```
+
+```{r "setup"}
+knitr::opts_knit$set(root.dir = normalizePath(resultsdir))
+#knitr::opts_knit$set(root.dir = normalizePath("/scratch/yquint/scRNAseq/20230525_results_velocity/"))
+```
+
+#-----------------------------#
+## Running velocity analysis ##
+#-----------------------------#
+
+# Loading the dataset
+Normalized, scaled seurat object containing spliced and unslpliced data. The object also needs to contain information on the highest variable genes (HVGs) and demensional reduction (UMAP).
+```{r}
+seuset.norm <- readRDS("/scratch/yquint/scRNAseq/20230517_results/seusetnorm_UMAP.rds")
+
+```
+
+# Running RNA-velocity
+
+```{r}
+seuset_velo <- RunVelocity(seuset.norm, spliced= "sf", unspliced = "uf", ncores = 10, reduction = "pca", verbose = FALSE)
+
+```
+
+#extracting the seurat cluster colors and adding them to the seuset_velo object
+When you want the cluster in the velocity UMAP to have the same color as the seurat clusters UMAP you can set the colors using this chunk of code below
+```{r}
+#If you already have an object containing the seurat colours load it here
+#seurat_colors = readRDS("seurat_colours.rds")
+#make sure seurat_colours is a dataframe 
+#The seuratcolours in a column named 'colour' 
+#The cluster numbers in a column named 'group'
+#seurat_colors = as.data.frame(seurat_colors)
+
+
+p = DimPlot(object = seuset.norm, reduction = "umap", group.by ="seurat_clusters", label = TRUE, pt.size = 0.5 + NoLegend())
+pbuild<- ggplot_build(p)#using ggplot_build to deconstruct the ggplot boject
+pdata <-pbuild$data[[1]]#pull the data used for the plot
+#the colours (in hexadecimal) are in the colour column of pdata, the seurat gclusters in the group column 
+pdata<- pdata[order(pdata$group),c("group", "colour")]#order the plot by seurat cluster numbers and keep only the group and colour column
+seurat_colors <- unique(pdata)#extract the colours
+saveRDS(seurat_colors, "seurat_colors.rds")
+
+#extract the cell and seurat_cluster information from the seuset_velo object
+velo = as.data.frame(seuset_velo$seurat_clusters)
+velo$cells <-rownames(velo)
+#use the column containing cluster information (present in both the velo and seurat_colors_df) to merge the cell information and the color information
+#make sure both columns contain the same data type
+velo$`seuset_velo$seurat_clusters`<- as.integer(velo$`seuset_velo$seurat_clusters`)
+seurat_colors$group <-as.integer(seurat_colors$group)
+merge_seurat_velo = left_join(velo, seurat_colors, by = c('seuset_velo$seurat_clusters' ='group'))
+
+
+merge_seurat_velo_color <- as.character(merge_seurat_velo$colour)
+names(merge_seurat_velo_color) <-Cells(seuset_velo)
+
+```
+
+#setting the colors of the clusters in the velocity UMAP using color pallets
+For example using color pallets included in the RColorBrewer package
+```{r} 
+# # This is a function for changing colors of the veocity plot
+# cell_pal <- function(cell_cats, pal_fun) {
+#   categories <- sort(unique(cell_cats))
+#   pal <- setNames(pal_fun(length(categories)), categories)
+#   pal[cell_cats]
+# }
+# 
+# #set the color of the seurat_custers using a brwer pallet from the RColorBrewer package
+# cell_colors <- cell_pal(seuset_velo$seurat_clusters, colorRampPalette(brewer_pal("qual", "Dark2")(8)))
+# cell_colors_velo <- cell_colors
+# names(cell_colors_velo) <- Cells(seuset_velo)
+
+```
+
+#create the velocity plot 
+The arrows in the UMAP are indicators of the precited directionality of the cells  
+```{r}
+#The dot-size of the cells in the plot can be changed by modifying the 'cex' parameter
+pdf("Velocity_res_1_5_grid30_scolors.pdf", width = 7, height = 5)
+show.velocity.on.embedding.cor(emb = Embeddings(seuset_velo, "umap"),
+                                          vel = Tool(seuset_velo, slot = "RunVelocity"),
+                                          n.cores = 25, show.grid.flow = TRUE,
+                                          grid.n = 30, cell.colors = merge_seurat_velo_color,
+                                          cex = 0.5, cell.border.alpha = 0,
+                                          arrow.scale = 7, arrow.lwd = 1,
+                                          xlab = "UMAP1", ylab = "UMAP2")
+dev.off()
+
+
+
+#using the RColorBrewer pallet colors 
+# pdf("Velocity_res_1_5_grid30.pdf", width = 7, height = 5)
+# cc_umap <- show.velocity.on.embedding.cor(emb = Embeddings(seuset_velo, "umap"),
+#                                           vel = Tool(seuset_velo, slot = "RunVelocity"),
+#                                           n.cores = 25, show.grid.flow = TRUE,
+#                                           grid.n = 30, cell.colors = cell_colors_velo,
+#                                           cex = 1, cell.border.alpha = 0,
+#                                           arrow.scale = 7, arrow.lwd = 1,
+#                                           xlab = "UMAP1", ylab = "UMAP2")
+# dev.off()
+
+saveRDS(seuset.norm, file = "seuset_clust_UMAP_velo.rds")
+
+
+```
+
+
+
