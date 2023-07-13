@@ -7,7 +7,8 @@ output:
     df_print: paged
   pdf_document: default
 ---
-This is a R Markdown file showing the workflow for analyzing scRNA-seq data that is already pre-processed by seq2science. Seq2science uses kalisto bustools which performs pseudoalignment on the scRNAseq reads and identifies spliced and unspliced reads. The results from the seq2science kalisto bustools analysis are the input for this workflow. 
+This is a R Markdown file showing the workflow for analyzing scRNA-seq data that is already pre-processed by seq2science. Seq2science uses kalisto bustools which performs pseudoalignment on the scRNAseq reads and identifies spliced and unspliced reads. 
+The results from the seq2science kalisto bustools analysis are the input for this workflow. 
 
 This workflow has been created using our data as example. When you want to use this workflow for your own analysis you will need to change parts of the code to make it fit your data. 
 This include: 
@@ -66,7 +67,7 @@ source("/scratch/yquint/collection_old_R_pipelines/qc_ercc_384plot.R")# Plotting
 
 ```
 
-#setting up the working/results directory for all code chunks in the R markdown
+#setting up the working directory for all outputs and inputs using the R markdown
 When saving results of the pipeline they can be found in this directory 
 ```{r}
 workdir <- "/scratch/yquint/scRNAseq/"
