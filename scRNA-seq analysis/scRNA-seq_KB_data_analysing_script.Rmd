@@ -67,22 +67,30 @@ source("/scratch/yquint/collection_old_R_pipelines/qc_ercc_384plot.R")# Plotting
 
 ```
 
-#setting up the working directory for all outputs and inputs using the R markdown
+### setting up the working directory for all outputs and inputs using the R markdown
 When saving results of the pipeline they can be found in this directory 
-```{r}
-workdir <- "/scratch/yquint/scRNAseq/"
+```{r, include=FALSE}
+# Writing the path to a directory where you want your results folder to be placed in
+dir <- "/path/to/directory/"
 
-# The code below creates a results folder in the specified workdir 
-# The name of the results folder will be todaysdate_results 
+# The code below creates a results folder in the specified dir 
+# The name of the results folder will be todaysdate_results
+# When running this command on a different date, it will again create a new folder
 dateoftoday <- gsub("-", "", as.character(Sys.Date()))
-resultsdir <- paste(workdir, dateoftoday, "_results/", sep = "")
+resultsdir <- paste(dir, dateoftoday, "_results_DESeq2/", sep = "")
+# Use the following command to create the results folder When working with R in linux
 system(paste("mkdir -p ", resultsdir))
+# Use the following command to create the results folder when working with R in your computer
+dir.create(file.path(resultsdir))
+
 ```
 
-
 ```{r "setup"}
-knitr::opts_knit$set(root.dir = normalizePath(resultsdir )) 
-# knitr::opts_knit$set(root.dir = normalizePath(workdir))
+# Set the working directory to the newly created results folder  
+knitr::opts_knit$set(root.dir = normalizePath(resultsdir))
+# When you want to set the working directory to a results folder that already exists
+#workdir <- "path/to/resultsfolder"
+#knitr::opts_knit$set(root.dir = normalizePath(workdir))
 ```
 
 
